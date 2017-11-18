@@ -1,0 +1,12 @@
+Changelog
+---------
+
+v0.5.0 2017-11-18
+=================
+
+ - First release with initial support to connect, subscribe and receive messages
+   though websockets
+ - Important known bugs and limitations:
+   - only 1 instance can be running at a time
+   - fixed STOMP_MAX_FRAME_BUFFER to 2048   
+  
