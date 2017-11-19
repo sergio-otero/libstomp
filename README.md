@@ -8,7 +8,7 @@ stomp: https://stomp.github.io/
 
 1 adapters available:
 
- * websockets: make connection to Websockets via https://libwebsockets.org
+ * websockets: make connection to Websockets via https://libwebsockets.org (tested with 2.4.0)
 
 Based on the Javascript implementation of http://www.jmesnil.net/stomp-websocket/doc/
 
