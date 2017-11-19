@@ -1,6 +1,9 @@
 Changelog
 ---------
 
+v0.5.1 2017-11-19
+ - Changed libwebsocket to static linking to avoid problems with 2 instances of the library running
+
 v0.5.0 2017-11-18
 =================
 

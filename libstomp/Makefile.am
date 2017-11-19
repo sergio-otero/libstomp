@@ -11,7 +11,7 @@ lib_LTLIBRARIES = libstomp.la
 libstomp_la_SOURCES = libstomp.c stomp_adapter_libwebsockets.c
 
 # Linker options libTestProgram
-libstomp_la_LDFLAGS = -lwebsockets
+libstomp_la_LDFLAGS = -static -lwebsockets
 
 # Compiler options. Here we are adding the include directory
 # to be searched for headers included in the source code.
