@@ -37,7 +37,7 @@
 
 #include "libstomp.h"
 
-const int STOMP_DEBUG = 1;
+const int STOMP_DEBUG = 0;
 
 typedef struct {
 	StompInfo *stomp_info;
@@ -86,7 +86,7 @@ int stomp_frame_header_marshall(StompHeaders *headers, char *buffer, int skipCon
 	return skipContentLength;
 }
 
-void stomp_frame_marshall(StompFrame *frame, char *buffer, int maxLength) {
+void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength) {
 	//TODO maxlength
 
 	strcpy(buffer, frame->command);
@@ -148,6 +148,13 @@ char* stomp_read_line(char *cur_line) {
   }
 }
 
+void stomp_empty_frame(StompFrame *frame) {
+	frame->command = NULL;
+	frame->body = NULL;
+	frame->system_headers = NULL;
+	frame->user_headers = NULL;
+}
+
 int stomp_frame_unmarshall(char *message, StompFrame *frame) {
 	// read command
 	char *cur_line = message;
@@ -187,8 +194,15 @@ int stomp_frame_unmarshall(char *message, StompFrame *frame) {
 }
 
 int stomp_unmarshall_frame_free(StompFrame *frame) {
-	free(frame->system_headers->header_array);
-	free(frame->system_headers);
+	if (frame->system_headers != NULL) {
+		free(frame->system_headers->header_array);
+		free(frame->system_headers);
+	}
+
+	if (frame->user_headers != NULL) {
+		free(frame->user_headers->header_array);
+		free(frame->user_headers);
+	}
 
 	return 0;
 }
@@ -254,7 +268,10 @@ int stomp_unsubscribe(StompInfo *stomp_info, char *subscription_id) {
 	system_headers_array[0].value = subscription_id;
 
 	StompHeaders system_headers = {.len = 1 , .header_array = system_headers_array};
-	StompFrame frame = {.command = "UNSUBSCRIBE", .system_headers = &system_headers, .user_headers = NULL, .body = NULL};
+	StompFrame frame;
+	stomp_empty_frame(&frame);
+	frame.command = "UNSUBSCRIBE";
+	frame.system_headers = &system_headers;
 
 	return stomp_transmit(stomp_info, &frame);
 }
@@ -378,6 +395,7 @@ static int onerror_callback(StompAdapter *adapter, char *message) {
 	headers.header_array = header_array;
 
 	StompFrame frame;
+	stomp_empty_frame(&frame);
 	frame.command = "ERROR";
 	frame.system_headers = &headers;
 
@@ -396,6 +414,7 @@ static int onmessage_callback(StompAdapter *adapter, char *message) {
 	stomp_debug_print("stomp receive '%s'\n", message);
 
 	StompFrame frame;
+	stomp_empty_frame(&frame);
 
 	if (stomp_frame_unmarshall(message, &frame)) return -1;
 
@@ -455,6 +474,7 @@ StompInfo stomp_create(StompAdapter *child_adapter) {
 	StompAdapterStompInfo *custom_data = malloc(sizeof(StompAdapterStompInfo));
 	stomp_info.adapter.custom_data = custom_data;
 
+	stomp_info.connect_headers.len = 0;
 	stomp_info.subscriptions = NULL;
 	stomp_info.last_server_action_time = time(NULL);
 	stomp_info.next_subscription_id = 0;
