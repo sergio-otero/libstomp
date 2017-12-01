@@ -152,4 +152,6 @@ extern int stomp_destroy(StompInfo *stomp_info);
 
 extern StompAdapter stomp_libwebsockets_adapter(char *url);
 
+extern void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength);
+
 #endif

@@ -11912,7 +11912,7 @@ CC=$lt_save_CC
 
 
 
-ac_config_files="$ac_config_files Makefile exampleProgram/Makefile libstomp/Makefile include/Makefile"
+ac_config_files="$ac_config_files Makefile TestProgram/Makefile exampleProgram/Makefile libstomp/Makefile include/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -12941,6 +12941,7 @@ do
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "TestProgram/Makefile") CONFIG_FILES="$CONFIG_FILES TestProgram/Makefile" ;;
     "exampleProgram/Makefile") CONFIG_FILES="$CONFIG_FILES exampleProgram/Makefile" ;;
     "libstomp/Makefile") CONFIG_FILES="$CONFIG_FILES libstomp/Makefile" ;;
     "include/Makefile") CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;

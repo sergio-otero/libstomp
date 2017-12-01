@@ -18,6 +18,7 @@ dnl Initialize Libtool
 LT_INIT
 
 AC_CONFIG_FILES(Makefile
+				TestProgram/Makefile
                 exampleProgram/Makefile
                 libstomp/Makefile
                 include/Makefile)
