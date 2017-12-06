@@ -87,7 +87,7 @@ int stomp_frame_header_marshall(StompHeaders *headers, char *buffer, int skipCon
 }
 
 void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength) {
-	//TODO maxlength
+	//TODO respect maxlength
 
 	strcpy(buffer, frame->command);
 	strcat(buffer, "\n");
@@ -114,10 +114,12 @@ void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength) 
 int stomp_transmit(StompInfo *stomp_info, StompFrame *frame) {
 	StompAdapter *child_adapter = stomp_info->adapter.child_adapter;
 
-	//TODO reuse buffer
-    char message[STOMP_MAX_FRAME_BUFFER];
+	int max_frame_length = stomp_info->adapter.max_frame_length;
 
-    stomp_frame_marshall(frame, message, STOMP_MAX_FRAME_BUFFER);
+	//TODO reuse buffer
+    char message[max_frame_length];
+
+    stomp_frame_marshall(frame, message, max_frame_length);
 
 	stomp_debug_print("stomp sending:\n%s\n", message);
 
@@ -470,6 +472,8 @@ StompInfo stomp_create(StompAdapter *child_adapter) {
 	stomp_info.adapter.onerror_callback = onerror_callback;
 	stomp_info.adapter.onheartbeat_callback = onheartbeat_callback;
 	stomp_info.adapter.onclose_callback = onclose_callback;
+
+	stomp_info.adapter.max_frame_length = child_adapter->max_frame_length;
 
 	StompAdapterStompInfo *custom_data = malloc(sizeof(StompAdapterStompInfo));
 	stomp_info.adapter.custom_data = custom_data;

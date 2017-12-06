@@ -38,8 +38,6 @@ extern const int STOMP_DEBUG;
 #define stomp_debug_print(fmt, ...) \
 		do { if (STOMP_DEBUG) fprintf(stderr, fmt, ##__VA_ARGS__); } while (0)
 
-#define STOMP_MAX_FRAME_BUFFER 2048
-
 enum StompAdapterStatus {
 	created,
 	initialized,
@@ -112,6 +110,8 @@ struct StompAdapter{
 	StompAdapter *parent_adapter;
 	StompAdapter *child_adapter;
 
+	int max_frame_length;
+
 	void *custom_data;
 };
 
@@ -130,7 +130,7 @@ struct StompInfo {
 	void *custom_data;
 };
 
-extern StompAdapter stomp_libwebsockets_adapter(char *url);
+extern StompAdapter stomp_libwebsockets_adapter(char *url, int max_frame_length);
 
 extern StompInfo stomp_create(StompAdapter *adapter);
 
@@ -149,8 +149,6 @@ extern int stomp_unsubscribe(StompInfo *stomp_info, char *subscription_id);
 extern int stomp_service(StompInfo *stomp_info, int timeout_ms);
 
 extern int stomp_destroy(StompInfo *stomp_info);
-
-extern StompAdapter stomp_libwebsockets_adapter(char *url);
 
 extern void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength);
 

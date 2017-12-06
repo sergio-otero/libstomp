@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 
   fprintf(stdout, "connecting %s !\n", fullURL);
 
-  StompAdapter ws_adapter = stomp_libwebsockets_adapter(fullURL);
+  StompAdapter ws_adapter = stomp_libwebsockets_adapter(fullURL, 2048);
   StompInfo stomp_info = stomp_create(&ws_adapter);
 
   stomp_init(&stomp_info);

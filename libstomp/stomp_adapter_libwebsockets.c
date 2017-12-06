@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include <libwebsockets.h>
 
@@ -38,14 +39,13 @@
 typedef struct {
 	struct lws *wsi; // Websocket instance
 	struct lws_context *context;
+	struct lws_protocols *protocols;
 	char *url;
 } StompAdapterLibWebSocketsData;
 
 static StompAdapterLibWebSocketsData* get_adapter_custom_data(StompAdapter *adapter) {
 	return (StompAdapterLibWebSocketsData*)adapter->custom_data;
 }
-
-#define STOMP_DEFLATE_BUFFER "rx_buf_size=11" // 2^n=2048
 
 int stomp_libwebsockets_callback_lws_http(struct lws *wsi, enum lws_callback_reasons reason,
 			void *user, void *in, size_t len);
@@ -58,25 +58,6 @@ enum stomp_lws_protocol_enum {
 		PROTOCOL_HTTP,
 		PROTOCOL_STOMP12
 	};
-
-static const struct lws_protocols stomp_lws_protocols[] = {
-    // first protocol must always be HTTP handler
-    {
-        "http-only",                // name
-		stomp_libwebsockets_callback_lws_http,          // callback
-        0,                          // per_session_data_size
-		STOMP_MAX_FRAME_BUFFER // rx_buffer_size
-    },
-    {
-        "v12.stomp",                // protocol name - very important!
-		stomp_libwebsockets_callback_lws_websocket,      // callback
-        0,                           // we don't use any per session data
-		STOMP_MAX_FRAME_BUFFER // rx_buffer_size
-    },
-    {
-        NULL, NULL, 0               // End of list
-    }
-};
 
 static const struct lws_extension stomp_lws_exts[] = {
 	{
@@ -152,9 +133,35 @@ static int connect_function (StompAdapter *adapter) {
 	*
 	* We tell it to not listen on any port.
 	*/
+	
+	// cannot be global const because max_frame_length
+	// destination is const. This is the only way i've found to declare it and mantain after function ends
+	const struct lws_protocols stomp_lws_protocols[] = {
+	    // first protocol must always be HTTP handler
+	    {
+	        "http-only",                // name
+			stomp_libwebsockets_callback_lws_http,          // callback
+	        0,                          // per_session_data_size
+			adapter->max_frame_length // rx_buffer_size
+	    },
+	    {
+	        "v12.stomp",                // protocol name - very important!
+			stomp_libwebsockets_callback_lws_websocket,      // callback
+	        0,                           // we don't use any per session data
+			adapter->max_frame_length // rx_buffer_size
+	    },
+	    {
+	        NULL, NULL, 0               // End of list
+	    }
+	};
+	
+	int size = 3*sizeof(struct lws_protocols);
+	custom_data->protocols = malloc(size);
+	memcpy(custom_data->protocols, stomp_lws_protocols, size);
+
+	info.protocols = custom_data->protocols;
 
 	info.port = CONTEXT_PORT_NO_LISTEN;
-	info.protocols = stomp_lws_protocols;
 	info.gid = -1;
 	info.uid = -1;
 	info.ws_ping_pong_interval = pp_secs;
@@ -167,6 +174,7 @@ static int connect_function (StompAdapter *adapter) {
 
 	custom_data->context = lws_create_context(&info);
 	if (custom_data->context == NULL) {
+		free(custom_data->protocols);
 		fprintf(stderr, "Creating libwebsocket context failed\n");
 		return -1;
 	}
@@ -187,13 +195,15 @@ static int connect_function (StompAdapter *adapter) {
 	 */
 
 	stomp_debug_print("Opening socket \n");
-	i.protocol = stomp_lws_protocols[PROTOCOL_STOMP12].name;
+	i.protocol = info.protocols[PROTOCOL_STOMP12].name;
 	i.pwsi = &custom_data->wsi;
 
 	i.userdata = adapter;
 
 	struct lws *result = lws_client_connect_via_info(&i);
+
 	if (!result) {
+		free(custom_data->protocols);
 		fprintf(stderr, "Error opening socket!\n");
 		return -1;
 	}
@@ -208,13 +218,15 @@ static int send_function (StompAdapter *adapter, char *message) {
 
 	StompAdapterLibWebSocketsData *custom_data = get_adapter_custom_data(adapter);
 
+	int max_frame_length = adapter->max_frame_length;
+
 	//TODO reuse buffer
-	char buffer[LWS_PRE + STOMP_MAX_FRAME_BUFFER];
+	char buffer[LWS_PRE + max_frame_length];
 
 	int message_len = strlen(message) + 1; // send the null char
 
-	if (strlen(message) > STOMP_MAX_FRAME_BUFFER) {
-		fprintf(stderr, "message exceed STOMP_MAX_FRAME_BUFFER %d > %d", message_len, STOMP_MAX_FRAME_BUFFER);
+	if (strlen(message) > max_frame_length) {
+		fprintf(stderr, "message exceed STOMP_MAX_FRAME_BUFFER %d > %d", message_len, max_frame_length);
 		return -1;
 	}
 
@@ -223,6 +235,7 @@ static int send_function (StompAdapter *adapter, char *message) {
 	int n = lws_write(custom_data->wsi, (unsigned char *)&buffer[LWS_PRE], message_len, LWS_WRITE_TEXT);
 	if (n < 0)
 		return -1;
+
 	/* we only had one thing to send, so inform lws we are done
 	 * if we had more to send, call lws_callback_on_writable(wsi);
 	 * and just return 0 from callback.  On having sent the last
@@ -253,6 +266,9 @@ static int destroy_function_internal (StompAdapter *adapter, int reconnect) {
 	if (custom_data->context) {
 		lws_context_destroy(custom_data->context);
 	}
+	if (custom_data->protocols) {
+		free(custom_data->protocols);
+	}
 
 	if (reconnect) {
 		adapter->status = initialized;
@@ -278,7 +294,7 @@ static int restart_function(StompAdapter *adapter) {
 	return 0;
 }
 
-StompAdapter stomp_libwebsockets_adapter(char *url) {
+StompAdapter stomp_libwebsockets_adapter(char *url, int max_frame_length) {
 	StompAdapter adapter;
 
 	adapter.status = created;
@@ -288,10 +304,13 @@ StompAdapter stomp_libwebsockets_adapter(char *url) {
 	adapter.send_function = send_function;
 	adapter.restart_function = restart_function;
 	adapter.destroy_function = destroy_function;
+	adapter.max_frame_length = max_frame_length;
 
 	StompAdapterLibWebSocketsData *custom_data = malloc(sizeof(StompAdapterLibWebSocketsData));
 	custom_data->url = url;
-
+	custom_data->context = NULL;
+	custom_data->wsi = NULL;
+	custom_data->protocols = NULL;
 	adapter.custom_data = custom_data;
 
 	return adapter;
@@ -314,25 +333,28 @@ int stomp_libwebsockets_callback_lws_http(struct lws *wsi, enum lws_callback_rea
 	return 0;
 }
 
-
 int stomp_libwebsockets_callback_lws_websocket(struct lws *wsi, enum lws_callback_reasons reason,
 			void *user, void *in, size_t len)
 {
-	StompAdapter *adapter = (StompAdapter *)user;
+	stomp_debug_print("stomp_callback http %i !!\n", reason);
+
+	StompAdapter *adapter = (StompAdapter *)lws_wsi_user(wsi);
 	StompAdapter *parent_adapter = NULL;
 
-	if (adapter != NULL) {
-		parent_adapter = adapter->parent_adapter;
-	}
+	if (adapter != NULL) parent_adapter = adapter->parent_adapter;
 
 	char *message = (char *)in;
 
-	stomp_debug_print("stomp_callback http %i !!\n", reason);
 	switch (reason) {
 		case LWS_CALLBACK_WS_EXT_DEFAULTS:
-			// En este momento se cambia el tamaño del buffer de compresion para que no se partan los mensajes en 2 callbacks
+			// Change the deflate buffer to fit messages in 1 callback
 			if (!strcmp(user, "permessage-deflate")) {
-				strcpy(in, STOMP_DEFLATE_BUFFER);
+				int max_frame_size = adapter->max_frame_length;
+
+				// 2^rx_buf_size = max_frame_size  => rx_buf_size = log2(max_frame_size)
+				int rx_buf_size = ceil(log(max_frame_size) / log(2));
+
+				sprintf(in, "rx_buf_size=%i", rx_buf_size); // 2^n=2048)
 			}
 			break;
 		case LWS_CALLBACK_CLIENT_ESTABLISHED:
@@ -341,6 +363,7 @@ int stomp_libwebsockets_callback_lws_websocket(struct lws *wsi, enum lws_callbac
 			adapter->status = connected;
 
 			parent_adapter->onopen_callback(parent_adapter);
+
 			break;
 		case LWS_CALLBACK_CLIENT_RECEIVE:
 			if (adapter->status != connected && adapter->status != preconnected) return 0;
@@ -350,6 +373,7 @@ int stomp_libwebsockets_callback_lws_websocket(struct lws *wsi, enum lws_callbac
 			message[len] = '\0';
 
 			parent_adapter->onmessage_callback(parent_adapter, message);
+
 			break;
 		case LWS_CALLBACK_CLOSED:
 			if (adapter->status != connected && adapter->status != preconnected) return 0;
@@ -357,6 +381,7 @@ int stomp_libwebsockets_callback_lws_websocket(struct lws *wsi, enum lws_callbac
 			adapter->status = disconnected;
 
 			parent_adapter->onclose_callback(parent_adapter, message);
+
 			break;
 		default:
 			break;
