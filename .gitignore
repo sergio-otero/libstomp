@@ -23,3 +23,5 @@ stamp-h1
 TestProgram/\.deps/
 
 TestProgram/test_stomp
+
+TestProgram/\.libs/test_stomp

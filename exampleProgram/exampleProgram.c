@@ -45,10 +45,18 @@ void test_stomp_sighandler(int sig)
 
 void test_stomp_message_callback(StompInfo *stomp_info, const StompFrame *frame) {
 	fprintf(stdout, "command %s message %s\n", frame->command, frame->body);
+
+	char** custom_data = (char **)stomp_info->custom_data;
+	char *destination = custom_data[1];
+
+	if (strcmp(destination,"")) {
+		stomp_send(stomp_info, destination, NULL, frame->body);
+	}
 }
 
 void test_stomp_subscribe(StompInfo *stomp_info) {
-	char *topic = (char *)stomp_info->custom_data;
+	char** custom_data = (char **)stomp_info->custom_data;
+	char *topic = custom_data[0];
 
 	fprintf(stdout, "subscribing %s !\n", topic);
 
@@ -86,6 +94,9 @@ int main(int argc, char **argv) {
   char *fullURL = argv[1];
   char *token = argv[2];
   char *topic = argv[3];
+  char *destination = "";
+
+  if (argc > 4) destination = argv[4];
 
   signal(SIGINT, test_stomp_sighandler);
 
@@ -109,7 +120,11 @@ int main(int argc, char **argv) {
 	return 1;
   }
 
-  stomp_info.custom_data = topic;
+  char** custom_data[2];
+  custom_data[0] = topic;
+  custom_data[1] = destination;
+
+  stomp_info.custom_data = custom_data;
 
   while (!test_stomp_force_exit) {
   	stomp_service(&stomp_info, 500);
@@ -126,6 +141,6 @@ int main(int argc, char **argv) {
   return 0;
 
   usage:
-  	fprintf(stderr, "Usage: exampleProgram <wsAddress> <AuthorizationHeader> <topic> \n");
+  	fprintf(stderr, "Usage: exampleProgram <wsAddress> <AuthorizationHeader> <topic> [<destination>]\n");
   	return 1;
 }

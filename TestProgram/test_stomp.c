@@ -140,7 +140,7 @@ StompAdapter create_test_adapter() {
 	adapter.send_function = send_function;
 	adapter.restart_function = restart_function;
 	adapter.destroy_function = destroy_function;
-
+	adapter.max_frame_length = 1024 * 10;
 	return adapter;
 }
 
@@ -295,7 +295,7 @@ MU_TEST(test_subcribe_ok) {
 
 	// Mensaje bueno si
 	expected_message_callback = 1;
-	strcpy(expected_frame_msg, "MESSAGE\nsubscription:sub-0\nmessage-id:001\ncontent-type:json\n\nel mensaje\n\0");
+	strcpy(expected_frame_msg, "MESSAGE\nsubscription:sub-0\nmessage-id:001\ncontent-type:json\ncontent-length:11\n\nel mensaje\n\0");
 
 	strcpy(str_connected, "MESSAGE\nsubscription:sub-0\nmessage-id:001\ncontent-type:json\n\nel mensaje\n\0");
 	test_adapter.parent_adapter->onmessage_callback(test_adapter.parent_adapter, str_connected);
@@ -306,6 +306,26 @@ MU_TEST(test_subcribe_ok) {
 
 }
 
+MU_TEST(test_send_ok) {
+	MU_SUB_TEST(connect);
+
+	expected_send = 1;
+	strcpy(expected_send_message, "SEND\ndestination:/destination\ncontent-type:text/plain\ncontent-length:5\n\n12\n34");
+
+	StompHeader header_array[1];
+	header_array[0].name = "content-type";
+	header_array[0].value = "text/plain";
+
+	StompHeaders headers;
+	headers.len = 1;
+	headers.header_array = header_array;
+
+	stomp_send(&stomp_info, "/destination", &headers, "12\n34");
+	stomp_adapter_assert();
+
+	mu_assert(stomp_info.adapter.status == connected, "status connected");
+}
+
 MU_TEST_SUITE(test_suite) {
 	MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
 
@@ -314,6 +334,7 @@ MU_TEST_SUITE(test_suite) {
 	MU_RUN_TEST(test_connect_ko_connection);
 	MU_RUN_TEST(test_connect_ko_unauthorized);
 	MU_RUN_TEST(test_subcribe_ok);
+	MU_RUN_TEST(test_send_ok);
 }
 
 int main(int argc, char *argv[]) {

@@ -92,7 +92,7 @@ void stomp_frame_marshall(const StompFrame *frame, char *buffer, int maxLength) 
 	strcpy(buffer, frame->command);
 	strcat(buffer, "\n");
 
-	int skipContentLength = stomp_frame_header_marshall(frame->system_headers, buffer, skipContentLength);
+	int skipContentLength = stomp_frame_header_marshall(frame->system_headers, buffer, 0);
 		skipContentLength = stomp_frame_header_marshall(frame->user_headers, buffer, skipContentLength);
 
 	if (frame->body && !skipContentLength) {
@@ -291,8 +291,10 @@ char* stomp_subscribe(StompInfo *stomp_info, char *destination, stomp_callback m
 	system_headers_array[0].name = "destination";
 	system_headers_array[0].value = destination;
 	if (header_id) {
+		// The client has specicified a suscription id
 		strcpy(subscription->subscription_id, header_id->value);
 	} else {
+		// Autogenerate a suscription id
 		sprintf(subscription->subscription_id, "sub-%d", stomp_info->next_subscription_id++);
 
 		system_headers_array[1].name = "id";
@@ -313,6 +315,19 @@ char* stomp_subscribe(StompInfo *stomp_info, char *destination, stomp_callback m
 	if (subscription->next != NULL) subscription->next->previous = subscription;
 
 	return subscription->subscription_id;
+}
+
+int stomp_send(StompInfo *stomp_info, char *destination, StompHeaders* headers, char *message) {
+	if (stomp_info->adapter.status != connected) return -1;
+
+	StompHeader system_headers_array[1];
+	system_headers_array[0].name = "destination";
+	system_headers_array[0].value = destination;
+
+	StompHeaders system_headers = {.len = 1 , .header_array = system_headers_array};
+	StompFrame frame = {.command = "SEND", .system_headers = &system_headers, .user_headers = headers, .body = message};
+
+	return stomp_transmit(stomp_info, &frame);
 }
 
 int stomp_service(StompInfo *stomp_info, int timeout_ms) {

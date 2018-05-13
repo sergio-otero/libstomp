@@ -146,6 +146,8 @@ extern char* stomp_subscribe(StompInfo *stomp_info, char *destination, stomp_cal
 
 extern int stomp_unsubscribe(StompInfo *stomp_info, char *subscription_id);
 
+extern int stomp_send(StompInfo *stomp_info, char *destination, StompHeaders* headers, char *message);
+
 extern int stomp_service(StompInfo *stomp_info, int timeout_ms);
 
 extern int stomp_destroy(StompInfo *stomp_info);
